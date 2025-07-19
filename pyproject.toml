@@ -17,3 +17,10 @@ redis = "^4.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.4"
+pytest-django = "^4.5"
+
+[tool.pytest.ini_options]
+# point pytest-django at your settings module
+DJANGO_SETTINGS_MODULE = "dsp_integration.settings"
+# discover tests in files named test_*.py
+python_files = ["test_*.py"]
