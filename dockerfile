@@ -12,7 +12,7 @@ RUN pip install poetry==1.4.2 && \
 
 # Copy and install dependencies
 COPY pyproject.toml poetry.lock* /app/
-RUN poetry install --no-dev --no-interaction --no-ansi
+RUN poetry install --with dev --no-interaction --no-ansi
 
 # Copy project
 COPY . /app
