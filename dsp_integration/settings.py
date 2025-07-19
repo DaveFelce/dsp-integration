@@ -73,6 +73,7 @@ CELERY_TASK_DEFAULT_RATE_LIMIT = "40/m"
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_DEFAULT_QUEUE = "dsp_integration"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+CELERY_TASK_IGNORE_RESULT = False
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
