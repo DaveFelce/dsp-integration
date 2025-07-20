@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 """
-simulate_submission.py
-
 Simulates a production service creating a DSP entity and enqueuing
 the Celery task to submit it to the third‐party API, using logging.
 """
@@ -19,7 +17,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dsp_integration.settings")
 django.setup()
 
 from submissions.models import DspEntityQueue
-from submissions.tasks import submit_entity, mock_submit_entity_success
+from submissions.tasks import mock_submit_entity_success
 
 
 def main():

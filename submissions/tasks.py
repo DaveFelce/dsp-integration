@@ -19,7 +19,7 @@ class BaseTaskWithRetry(Task):
 
 
 @app.task(bind=True, base=BaseTaskWithRetry)
-def mock_submit_entity_success(self, queue_id):
+def mock_submit_entity_success(self, queue_id: int) -> dict:
     with transaction.atomic():
         # Get lock on the job within transaction block
         job = DspEntityQueue.objects.select_for_update().get(id=queue_id)
@@ -39,7 +39,7 @@ def mock_submit_entity_success(self, queue_id):
 
 
 @app.task(bind=True, base=BaseTaskWithRetry)
-def submit_entity(self, queue_id):
+def submit_entity(self, queue_id: int) -> dict:
     with transaction.atomic():
         # Get lock on the job within transaction block
         job = DspEntityQueue.objects.select_for_update().get(id=queue_id)
@@ -64,10 +64,13 @@ def submit_entity(self, queue_id):
             if resp.status_code == HTTPStatus.ACCEPTED:
                 job.status = DspEntityQueue.Status.SUBMITTED
                 job.save()
+
+                return resp.json()
             else:
                 job.status = DspEntityQueue.Status.PENDING
                 job.save()
                 raise requests.HTTPError(f"Expected status {HTTPStatus.ACCEPTED}, got {resp.status_code}")
+
         except requests.RequestException as exc:
             job.last_error = str(exc)
             job.save()

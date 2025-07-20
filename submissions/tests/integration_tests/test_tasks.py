@@ -8,7 +8,7 @@ from submissions.tasks import API_BASE, submit_entity
 
 @pytest.mark.django_db
 @responses.activate
-def test_submit_entity_happy_path_using_responses():
+def test_submit_entity_happy_path_using_responses() -> None:
     # Arrange
     # Create a pending job
     job = DspEntityQueue.objects.create(

@@ -1,6 +1,7 @@
 """
 Django settings for dsp_integration project.
 """
+
 import os
 from pathlib import Path
 
