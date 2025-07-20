@@ -19,7 +19,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dsp_integration.settings")
 django.setup()
 
 from submissions.models import DspEntityQueue
-from submissions.tasks import submit_entity
+from submissions.tasks import submit_entity, mock_submit_entity_success
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
         logger.info("Created job ID=%s with status=%s", job.id, job.status)
 
         # Enqueue the Celery task
-        result = submit_entity.delay(job.id)
+        result = mock_submit_entity_success.delay(job.id)
         logger.info("Task enqueued: task_id=%s", result.id)
 
         task_output = result.get(timeout=30)  # may raise on timeout or failure

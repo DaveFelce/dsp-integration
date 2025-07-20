@@ -10,24 +10,32 @@ from .models import DspEntityAudit, DspEntityQueue
 API_BASE = "https://api.thirdpartydsp.com/v1"
 
 
-@app.task(bind=True, max_retries=5)
-def dave(self, queue_id):
-    with transaction.atomic():
-        # Get lock on the job within transaction block
-        job = DspEntityQueue.objects.select_for_update().get(id=queue_id)
-        job.attempts += 1
-        job.status = DspEntityQueue.Status.FAILED
-        job.save()
-
-        return {"queue_id": queue_id, "status": job.status}
-
-
 class BaseTaskWithRetry(Task):
     autoretry_for = (requests.RequestException,)
     max_retries = 5
     retry_backoff = True
     retry_backoff_max = 200
     retry_jitter = True
+
+
+@app.task(bind=True, base=BaseTaskWithRetry)
+def mock_submit_entity_success(self, queue_id):
+    with transaction.atomic():
+        # Get lock on the job within transaction block
+        job = DspEntityQueue.objects.select_for_update().get(id=queue_id)
+        job.attempts += 1
+        job.status = DspEntityQueue.Status.SUBMITTED
+        job.save()
+
+        mock_response_json = {"queue_id": queue_id, "status": job.status}
+
+        DspEntityAudit.objects.create(
+            queue=job,
+            http_status=HTTPStatus.ACCEPTED,
+            response=mock_response_json,
+        )
+
+        return mock_response_json
 
 
 @app.task(bind=True, base=BaseTaskWithRetry)
