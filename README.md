@@ -41,3 +41,44 @@
    - Task failures
    - Task timeouts
    - The task logic covering the dependency graph
+
+## High level architecture diagram
+
+```text
+                          +---------------------+
+                          |    Your App/API     |
+                          |  (Enqueues jobs)    |
+                          +----------+----------+
+                                     |
+                                     v
+   +────────────────────────────────────────────────────+
+   |                    PostgreSQL                     |
+   |  +────────────────┐   +────────────────────────┐  |
+   |  | dsp_entity_    |   | dsp_entity_audit       |  |
+   |  |   queue        |   | (audit trail of all reqs)|
+   |  +────────────────┘   +────────────────────────┘  |
+   +────────────────────────────────────────────────────+
+                |                      ^
+                |                      |
+                v                      |
+          +------------+               |
+          |   Redis    |<--------------+
+          |  (Broker)  |
+          +------------+
+                |
+     +----------+----------+
+     |                     |
+     v                     v
++--------+           +-----------+
+| Worker |           |   Beat    |
+|(submit_entity)     |(polling)  |
++--------+           +-----------+
+     |                     |
+     v                     v
+POST /v1/{entity}    GET /v1/{entity}/{id}/status
+     |                     |
+     v                     v
++----------------------------------------------+
+|            Third-Party DSP API               |
+|      (Rate-limited to 40 req/min)            |
++----------------------------------------------+
