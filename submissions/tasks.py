@@ -1,5 +1,7 @@
+from http import HTTPStatus
+
 import requests
-from celery import shared_task
+from celery import Task
 from django.db import transaction
 from dsp_integration.celery import app
 
@@ -8,27 +10,43 @@ from .models import DspEntityAudit, DspEntityQueue
 API_BASE = "https://api.thirdpartydsp.com/v1"
 
 
-# @app.task(bind=True, max_retries=5)
-# def dave(self, queue_id):
-#     with transaction.atomic():
-#         # Get lock on the job within transaction block
-#         job = DspEntityQueue.objects.select_for_update().get(id=queue_id)
-#         job.attempts += 1
-#         job.status = DspEntityQueue.Status.FAILED
-#         job.save()
-#
-#         return {"queue_id": queue_id, "status": job.status}
+class BaseTaskWithRetry(Task):
+    autoretry_for = (requests.RequestException,)
+    max_retries = 5
+    retry_backoff = True
+    retry_backoff_max = 200
+    retry_jitter = True
 
 
-@app.task(bind=True, max_retries=5)
-def submit_entity(self, queue_id):
+@app.task(bind=True, base=BaseTaskWithRetry)
+def mock_submit_entity_success(self, queue_id: int) -> dict:
+    with transaction.atomic():
+        # Get lock on the job within transaction block
+        job = DspEntityQueue.objects.select_for_update().get(id=queue_id)
+        job.attempts += 1
+        job.status = DspEntityQueue.Status.SUBMITTED
+        job.save()
+
+        mock_response_json = {"queue_id": queue_id, "status": job.status}
+
+        DspEntityAudit.objects.create(
+            queue=job,
+            http_status=HTTPStatus.ACCEPTED,
+            response=mock_response_json,
+        )
+
+        return mock_response_json
+
+
+@app.task(bind=True, base=BaseTaskWithRetry)
+def submit_entity(self, queue_id: int) -> dict:
     with transaction.atomic():
         # Get lock on the job within transaction block
         job = DspEntityQueue.objects.select_for_update().get(id=queue_id)
 
         if job.depends_on and job.depends_on.status != DspEntityQueue.Status.COMPLETED:
             # release the lock and retry later
-            raise self.retry(countdown=30)
+            raise self.retry(countdown=30)  # 30 seconds delay should be in config, not hardcoded
 
         job.attempts += 1
         job.save()
@@ -41,23 +59,25 @@ def submit_entity(self, queue_id):
                 queue=job,
                 http_status=resp.status_code,
                 response=resp.json(),
-                backoff_secs=self.request.delivery_info.get("countdown", 0),
             )
 
-            if resp.status_code == 202:
+            if resp.status_code == HTTPStatus.ACCEPTED:
                 job.status = DspEntityQueue.Status.SUBMITTED
                 job.save()
+
+                return resp.json()
             else:
                 job.status = DspEntityQueue.Status.PENDING
                 job.save()
-                raise requests.HTTPError(f"Expected status 202, got {resp.status_code}")
+                raise requests.HTTPError(f"Expected status {HTTPStatus.ACCEPTED}, got {resp.status_code}")
+
         except requests.RequestException as exc:
             job.last_error = str(exc)
             job.save()
-            raise self.retry(exc=exc, countdown=self.request.retries * 60)
+            raise self.retry(exc=exc)
 
 
-# For future development
+# For future development: this task polls the status of submitted jobs
 @app.task(bind=True, max_retries=5)
 def poll_submissions():
     # TODO: Use the Status enum from the model
@@ -69,7 +89,6 @@ def poll_submissions():
                 queue=job,
                 http_status=resp.status_code,
                 response=resp.json(),
-                backoff_secs=0,
             )
             data = resp.json()
             # TODO: use the Status enum from the model

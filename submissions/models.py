@@ -24,10 +24,8 @@ class DspEntityQueue(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
-# For future development
 class DspEntityAudit(models.Model):
     queue = models.ForeignKey(DspEntityQueue, related_name="audits", on_delete=models.CASCADE)
     attempt_at = models.DateTimeField(auto_now_add=True)
     http_status = models.IntegerField(null=True)
     response = models.JSONField(null=True)
-    backoff_secs = models.IntegerField(default=0)

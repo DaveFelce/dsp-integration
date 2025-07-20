@@ -18,6 +18,7 @@ redis = "^4.0"
 [tool.poetry.dev-dependencies]
 pytest = "^7.4"
 pytest-django = "^4.5"
+responses = "^0.23.1"
 
 [tool.pytest.ini_options]
 # point pytest-django at your settings module
