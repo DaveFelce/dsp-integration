@@ -78,26 +78,26 @@ def submit_entity(self, queue_id: int) -> dict:
 
 
 # For future development: this task polls the status of submitted jobs
-@app.task(bind=True, max_retries=5)
-def poll_submissions():
-    # TODO: Use the Status enum from the model
-    pending = DspEntityQueue.objects.filter(status="submitted")
-    for job in pending:
-        try:
-            resp = requests.get(f"{API_BASE}/{job.entity_type}/{job.id}/status")
-            DspEntityAudit.objects.create(
-                queue=job,
-                http_status=resp.status_code,
-                response=resp.json(),
-            )
-            data = resp.json()
-            # TODO: use the Status enum from the model
-            if data.get("status") == "success":
-                job.status = "completed"
-            elif data.get("status") == "failed":
-                job.status = "failed"
-                job.last_error = data.get("error_message")
-            job.save()
-        except requests.RequestException as exc:
-            job.last_error = str(exc)
-            job.save()
+# @app.task(bind=True, max_retries=5)
+# def poll_submissions():
+#     # TODO: Use the Status enum from the model
+#     pending = DspEntityQueue.objects.filter(status="submitted")
+#     for job in pending:
+#         try:
+#             resp = requests.get(f"{API_BASE}/{job.entity_type}/{job.id}/status")
+#             DspEntityAudit.objects.create(
+#                 queue=job,
+#                 http_status=resp.status_code,
+#                 response=resp.json(),
+#             )
+#             data = resp.json()
+#             # TODO: use the Status enum from the model
+#             if data.get("status") == "success":
+#                 job.status = "completed"
+#             elif data.get("status") == "failed":
+#                 job.status = "failed"
+#                 job.last_error = data.get("error_message")
+#             job.save()
+#         except requests.RequestException as exc:
+#             job.last_error = str(exc)
+#             job.save()
