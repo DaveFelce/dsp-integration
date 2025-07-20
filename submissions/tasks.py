@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 import requests
 from celery import Task
 from django.db import transaction
@@ -8,16 +10,18 @@ from .models import DspEntityAudit, DspEntityQueue
 API_BASE = "https://api.thirdpartydsp.com/v1"
 
 
-# @app.task(bind=True, max_retries=5)
-# def dave(self, queue_id):
-#     with transaction.atomic():
-#         # Get lock on the job within transaction block
-#         job = DspEntityQueue.objects.select_for_update().get(id=queue_id)
-#         job.attempts += 1
-#         job.status = DspEntityQueue.Status.FAILED
-#         job.save()
-#
-#         return {"queue_id": queue_id, "status": job.status}
+@app.task(bind=True, max_retries=5)
+def dave(self, queue_id):
+    with transaction.atomic():
+        # Get lock on the job within transaction block
+        job = DspEntityQueue.objects.select_for_update().get(id=queue_id)
+        job.attempts += 1
+        job.status = DspEntityQueue.Status.FAILED
+        job.save()
+
+        return {"queue_id": queue_id, "status": job.status}
+
+
 class BaseTaskWithRetry(Task):
     autoretry_for = (requests.RequestException,)
     max_retries = 5
@@ -34,7 +38,7 @@ def submit_entity(self, queue_id):
 
         if job.depends_on and job.depends_on.status != DspEntityQueue.Status.COMPLETED:
             # release the lock and retry later
-            raise self.retry(countdown=30)
+            raise self.retry(countdown=30)  # 30 seconds delay should be in config, not hardcoded
 
         job.attempts += 1
         job.save()
@@ -47,20 +51,19 @@ def submit_entity(self, queue_id):
                 queue=job,
                 http_status=resp.status_code,
                 response=resp.json(),
-                backoff_secs=self.request.delivery_info.get("countdown", 0),
             )
 
-            if resp.status_code == 202:
+            if resp.status_code == HTTPStatus.ACCEPTED:
                 job.status = DspEntityQueue.Status.SUBMITTED
                 job.save()
             else:
                 job.status = DspEntityQueue.Status.PENDING
                 job.save()
-                raise requests.HTTPError(f"Expected status 202, got {resp.status_code}")
+                raise requests.HTTPError(f"Expected status {HTTPStatus.ACCEPTED}, got {resp.status_code}")
         except requests.RequestException as exc:
             job.last_error = str(exc)
             job.save()
-            raise self.retry(exc=exc, countdown=self.request.retries * 60)
+            raise self.retry(exc=exc)
 
 
 # For future development: this task polls the status of submitted jobs
@@ -75,7 +78,6 @@ def poll_submissions():
                 queue=job,
                 http_status=resp.status_code,
                 response=resp.json(),
-                backoff_secs=0,
             )
             data = resp.json()
             # TODO: use the Status enum from the model
