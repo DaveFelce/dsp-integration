@@ -1,5 +1,5 @@
 import requests
-from celery import shared_task
+from celery import Task
 from django.db import transaction
 from dsp_integration.celery import app
 
@@ -18,9 +18,15 @@ API_BASE = "https://api.thirdpartydsp.com/v1"
 #         job.save()
 #
 #         return {"queue_id": queue_id, "status": job.status}
+class BaseTaskWithRetry(Task):
+    autoretry_for = (requests.RequestException,)
+    max_retries = 5
+    retry_backoff = True
+    retry_backoff_max = 200
+    retry_jitter = True
 
 
-@app.task(bind=True, max_retries=5)
+@app.task(bind=True, base=BaseTaskWithRetry)
 def submit_entity(self, queue_id):
     with transaction.atomic():
         # Get lock on the job within transaction block
@@ -57,7 +63,7 @@ def submit_entity(self, queue_id):
             raise self.retry(exc=exc, countdown=self.request.retries * 60)
 
 
-# For future development
+# For future development: this task polls the status of submitted jobs
 @app.task(bind=True, max_retries=5)
 def poll_submissions():
     # TODO: Use the Status enum from the model
